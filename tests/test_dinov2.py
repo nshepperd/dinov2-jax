@@ -344,6 +344,54 @@ def test_kdd_feature_pipeline(torch_model, jax_model, model_name):
     assert np.all(cos > 1 - 1e-6), f"cosine similarity too low: {cos}"
 
 
+# =============================================================================
+# bf16 mode: cuDNN flash attention, judged against the fp32 torch reference
+# =============================================================================
+
+
+@pytest.fixture(scope="module")
+def jax_model_bf16(jax_model):
+    from dinov2_jax import cast_floating
+
+    return cast_floating(jax_model, jnp.bfloat16)
+
+
+needs_gpu = pytest.mark.skipif(
+    jax.default_backend() != "gpu", reason="cuDNN attention needs a GPU"
+)
+
+
+@needs_gpu
+def test_bf16_uses_cudnn_attention(jax_model_bf16):
+    x = jnp.asarray(random_images(2, 224, 224), jnp.bfloat16)
+    hlo = (
+        jax.jit(type(jax_model_bf16).__call__)
+        .lower(jax_model_bf16, x)
+        .compile()
+        .as_text()
+    )
+    assert "cudnn" in hlo and "fmha" in hlo.lower(), (
+        "bf16 forward did not lower to a cuDNN fused attention kernel"
+    )
+
+
+@needs_gpu
+def test_bf16_forward(torch_model, jax_model_bf16):
+    x = random_images(2, 224, 224, seed=11)
+    with torch.no_grad():
+        ref = torch_model(torch.from_numpy(x)).numpy()
+    out = np.asarray(
+        jax.jit(type(jax_model_bf16).__call__)(jax_model_bf16, jnp.asarray(x, jnp.bfloat16)),
+        dtype=np.float32,
+    )
+    assert out.shape == ref.shape
+    cos = np.sum(out * ref, -1) / (np.linalg.norm(out, axis=-1) * np.linalg.norm(ref, axis=-1))
+    rel = np.linalg.norm(out - ref, axis=-1) / np.linalg.norm(ref, axis=-1)
+    print(f"bf16 cls: cosine={cos}, relative_l2={rel}")
+    assert np.all(cos > 0.995), f"bf16 cosine similarity too low: {cos}"
+    assert np.all(rel < 0.1), f"bf16 relative error too high: {rel}"
+
+
 def test_config_matches_torch(torch_model, jax_model, model_name):
     """The static architecture facts torch exposes should agree."""
     assert torch_model.embed_dim == jax_model.embed_dim

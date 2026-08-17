@@ -103,9 +103,15 @@ class Attention(eqx.Module):
         q, k, v = rearrange(
             self.qkv(x), "b n (p h d) -> p b n h d", p=3, h=self.num_heads, d=self.head_dim
         )
-        attn = jnp.einsum("bqhd,bkhd->bhqk", q, k) * self.head_dim**-0.5
-        attn = jax.nn.softmax(attn, axis=-1)
-        out = jnp.einsum("bhqk,bkhd->bqhd", attn, v)
+        if x.dtype in (jnp.float16, jnp.bfloat16) and jax.default_backend() == "gpu":
+            # cuDNN flash attention: fused and O(seq) memory, but half
+            # precision only. Mathematically the same softmax(qk^T)v with
+            # scale 1/sqrt(head_dim).
+            out = jax.nn.dot_product_attention(q, k, v, implementation="cudnn")
+        else:
+            attn = jnp.einsum("bqhd,bkhd->bhqk", q, k) * self.head_dim**-0.5
+            attn = jax.nn.softmax(attn, axis=-1)
+            out = jnp.einsum("bhqk,bkhd->bqhd", attn, v)
         return self.proj(rearrange(out, "b n h d -> b n (h d)"))
 
 

@@ -7,6 +7,7 @@ from typing import TypeVar
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 
 T = TypeVar("T", bound=eqx.Module)
 
@@ -64,4 +65,19 @@ def mapmod_with_path(
     return proc((), (), module)
 
 
-__all__ = ["mapmod", "mapmod_with_path", "replace"]
+def cast_floating(module: T, dtype) -> T:
+    """Cast every floating-point array in `module` to `dtype`.
+
+    The usual way to get a bf16 model: load in fp32 and cast. Non-float leaves
+    (and static fields) are untouched.
+    """
+
+    def visit(x):
+        if isinstance(x, jax.Array) and jnp.issubdtype(x.dtype, jnp.floating):
+            return x.astype(dtype)
+        return x
+
+    return jax.tree_util.tree_map(visit, module)
+
+
+__all__ = ["cast_floating", "mapmod", "mapmod_with_path", "replace"]

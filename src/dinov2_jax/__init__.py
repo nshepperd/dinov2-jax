@@ -3,7 +3,7 @@ official Meta checkpoints."""
 from __future__ import annotations
 
 from .config import DINOV2_CONFIGS, DinoV2Config
-from .equinox_utils import mapmod, mapmod_with_path, replace
+from .equinox_utils import cast_floating, mapmod, mapmod_with_path, replace
 from .linear import LayerNorm, Linear
 from .loading import load_dinov2, load_state_dict
 from .model import (
@@ -40,6 +40,7 @@ __all__ = [
     "Param",
     "PatchEmbed",
     "SwiGLUFFNFused",
+    "cast_floating",
     "classification_transform",
     "dgm_eval_clean_transform",
     "dgm_eval_transform",

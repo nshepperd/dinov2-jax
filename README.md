@@ -44,6 +44,23 @@ interpolation, including the historical `+0.1` scale-factor kludge (plain
 checkpoints) and antialiasing (`_reg` checkpoints) — this is load-bearing for
 output parity, don't simplify it.
 
+### bf16 mode
+
+For throughput-bound workloads, cast the model and inputs to bf16; attention
+then automatically dispatches to cuDNN flash attention (fused, O(seq) memory)
+instead of the reference einsum path:
+
+```python
+from dinov2_jax import cast_floating
+
+model_bf16 = cast_floating(model, jnp.bfloat16)
+features = jax.jit(type(model_bf16).__call__)(model_bf16, batch.astype(jnp.bfloat16))
+```
+
+(Equivalently, `load_dinov2(name, dtype=jnp.bfloat16)`.) bf16 CLS features
+land within ~2% relative L2 / >0.999 cosine of the fp32 reference — fine for
+retrieval or probing, but use fp32 for metric-grade KDD numbers.
+
 Preprocessing helpers in `dinov2_jax.transforms` (all pure PIL/numpy, no torch
 dependency): `dgm_eval_transform` (dgm-eval default: bicubic resize to
 224x224 + ImageNet normalize), `dgm_eval_clean_transform` (dgm-eval's
