@@ -1,0 +1,48 @@
+[project]
+name = "dinov2-jax"
+version = "0.1.0"
+description = "DINOv2 vision transformers in JAX/Equinox, weight-compatible with the official Meta checkpoints"
+readme = "README.md"
+authors = [
+    { name = "Emily Shepperd", email = "emily@anlatan.ai" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "jax[cuda12]>=0.6",
+    # 0.13.8 added a typed Module.__new__, without which type checkers infer
+    # every `SomeModule(...)` as bare `Module`.
+    "equinox>=0.13.8",
+    "jaxtyping",
+    "einops",
+    "pydantic",
+    "safetensors",
+    "numpy",
+    "pillow",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+# Converting the official .pth checkpoints to safetensors needs torch to
+# unpickle them. Once converted (cached), torch is not needed at runtime.
+convert = ["torch"]
+
+[dependency-groups]
+test = [
+    "pytest",
+    "torch",
+    "torchvision",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff.lint]
+# jaxtyping shape strings (e.g. Float[Array, "batch seq"]) sit inside annotations,
+# so ruff reads them as forward references and misjudges them:
+#   F722/F821 - "batch seq" is not valid Python / `batch` is undefined.
+#   UP037     - under PEP 563 it thinks the quotes are redundant.
+ignore = ["F722", "F821", "UP037"]
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]
