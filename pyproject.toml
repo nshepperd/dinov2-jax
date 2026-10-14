@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "jax[cuda12]>=0.6",
+    "jax>=0.6",
     # 0.13.8 added a typed Module.__new__, without which type checkers infer
     # every `SomeModule(...)` as bare `Module`.
     "equinox>=0.13.8",
